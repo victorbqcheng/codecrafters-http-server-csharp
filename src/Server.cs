@@ -29,7 +29,7 @@ static async Task HandleClientAsync(TcpClient client)
             if (path == "/")
             {
                 response = "HTTP/1.1 200 OK\r\n" + 
-                "Content-Length: 0" +
+                "Content-Length: 0\r\n" +
                 "\r\n" +
                 "";
             }
