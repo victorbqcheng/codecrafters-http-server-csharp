@@ -28,12 +28,28 @@ static async Task HandleClientAsync(TcpClient client)
             string response = "HTTP/1.1 404 Not Found\r\n\r\n";
             if (path == "/")
             {
-                response = "HTTP/1.1 200 OK\r\n\r\n";
+                response = "HTTP/1.1 200 OK\r\n" + 
+                "Content-Length: 0" +
+                "\r\n" +
+                "";
+            }
+            else if (Echo(path))
+            {
+                string status = "HTTP/1.1 200 OK\r\n";
+                string body = path.Substring(6);    // remove "/echo/"
+                string contentType = "text/plain";
+                string contentLength = Encoding.UTF8.GetByteCount(body).ToString();
+                response = status +
+                    $"Content-Type: {contentType}\r\n" +
+                    $"Content-Length: {contentLength}\r\n" +
+                    "\r\n" +
+                    body;
             }
             byte[] data = Encoding.UTF8.GetBytes(response);
             await stream.WriteAsync(data, 0, data.Length);
         }
     }
+    client.Close();
 }
 
 static (string Method, string Path) ParseHttpRequest(string requestText)
@@ -50,6 +66,11 @@ static (string Method, string Path) ParseHttpRequest(string requestText)
         return ("", "");
     }
     return (parts[0], parts[1]);
+}
+
+static bool Echo(string path)
+{
+    return path.StartsWith("/echo/");
 }
 
 // clientSocket.Send(Encoding.UTF8.GetBytes("HTTP/1.1 200 OK\r\n\r\n"));
