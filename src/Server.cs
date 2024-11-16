@@ -28,7 +28,9 @@ static async Task HandleClientAsync(TcpClient client)
             string response = "HTTP/1.1 404 Not Found\r\n\r\n";
             if (request.Path == "/")
             {
+                Console.WriteLine("Root endpoint");
                 response = RootEndPoint(request);
+                Console.WriteLine("response:" + response);
             }
             else if (Echo(request.Path))
             {
