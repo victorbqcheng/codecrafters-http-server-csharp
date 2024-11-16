@@ -11,7 +11,7 @@ server.Start();
 
 while (true)
 {
-    var client = server.AcceptTcpClient(); // wait for client
+    var client = await server.AcceptTcpClientAsync(); // wait for client
     await HandleClientAsync(client);
 }
 
