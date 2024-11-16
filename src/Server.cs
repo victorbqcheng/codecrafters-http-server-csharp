@@ -149,7 +149,7 @@ static string FilesEndPoint(HttpRequest request)
     if (File.Exists(filePath))
     {
         string status = "HTTP/1.1 200 OK\r\n";
-        string contentType = "text/plain";
+        string contentType = "text/octet-stream";
         string contentLength = new FileInfo(filePath).Length.ToString();
         string body = File.ReadAllText(filePath);
         string response = status +
