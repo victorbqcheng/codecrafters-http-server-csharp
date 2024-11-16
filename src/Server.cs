@@ -1,9 +1,16 @@
+using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
 
 // You can use print statements as follows for debugging, they'll be visible when running tests.
 Console.WriteLine("Logs from your program will appear here!");
+
+if(args.Length<2)
+{
+    Console.WriteLine("Usage: --directory /tmp/");
+    return;
+}
 
 // Uncomment this block to pass the first stage
 TcpListener server = new TcpListener(IPAddress.Any, 4221);
@@ -12,19 +19,18 @@ server.Start();
 while (true)
 {
     var client = await server.AcceptTcpClientAsync(); // wait for client
-    _ = Task.Run(() =>
-    {
-        HandleClient(client);
-    });
+    await HandleClientAsync(client);
+
 }
 
-static Task HandleClient(TcpClient client)
+static async Task HandleClientAsync(TcpClient client)
 {
+    
     using (NetworkStream stream = client.GetStream())
     {
         byte[] buffer = new byte[1024];
         int bytesRead;
-        while ((bytesRead = stream.Read(buffer, 0, buffer.Length)) != 0)
+        while ((bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length)) != 0)
         {
             string receiveData = Encoding.UTF8.GetString(buffer, 0, bytesRead);
             HttpRequest request = ParseHttpRequest(receiveData);
@@ -43,12 +49,15 @@ static Task HandleClient(TcpClient client)
             {
                 response = UserAgentEndPoint(request);
             }
+            else if (request.Path.StartsWith("/files/"))
+            {
+                response = FilesEndPoint(request);
+            }
             byte[] data = Encoding.UTF8.GetBytes(response);
-            stream.Write(data, 0, data.Length);
+            await stream.WriteAsync(data, 0, data.Length);
         }
     }
     client.Close();
-    return Task.CompletedTask;
 }
 // Parse the HTTP request
 static HttpRequest ParseHttpRequest(string requestText)
@@ -96,7 +105,7 @@ static string RootEndPoint(HttpRequest request)
     string response = status +
         "Content-Type: text/json\r\n" +
         $"Content-Length: {body.Length}\r\n" +
-        "\r\n" + 
+        "\r\n" +
         body;
     return response;
 }
@@ -130,6 +139,32 @@ static string UserAgentEndPoint(HttpRequest request)
 
     return response;
 }
+
+static string FilesEndPoint(HttpRequest request)
+{
+    var args = Environment.GetCommandLineArgs();
+    string dir = args[1];
+    string path = request.Path.Substring(7);
+    string filePath = dir + path;
+    if (File.Exists(filePath))
+    {
+        string status = "HTTP/1.1 200 OK\r\n";
+        string contentType = "text/plain";
+        string contentLength = new FileInfo(filePath).Length.ToString();
+        string body = File.ReadAllText(filePath);
+        string response = status +
+            $"Content-Type: {contentType}\r\n" +
+            $"Content-Length: {contentLength}\r\n" +
+            "\r\n" +
+            body;
+        return response;
+    }
+    else
+    {
+        return "HTTP/1.1 404 Not Found\r\n\r\n";
+    }
+}
+
 class HttpRequest
 {
     public string Method { get; set; } = "";
