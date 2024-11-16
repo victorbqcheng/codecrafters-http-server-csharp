@@ -24,26 +24,19 @@ static async Task HandleClientAsync(TcpClient client)
         while ((bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length)) != 0)
         {
             string receiveData = Encoding.UTF8.GetString(buffer, 0, bytesRead);
-            (string method, string path) = ParseHttpRequest(receiveData);
+            HttpRequest request = ParseHttpRequest(receiveData);
             string response = "HTTP/1.1 404 Not Found\r\n\r\n";
-            if (path == "/")
+            if (request.Path == "/")
             {
-                response = "HTTP/1.1 200 OK\r\n" + 
-                "Content-Length: 0\r\n" +
-                "\r\n" +
-                "";
+                response = RootEndPoint(request);
             }
-            else if (Echo(path))
+            else if (Echo(request.Path))
             {
-                string status = "HTTP/1.1 200 OK\r\n";
-                string body = path.Substring(6);    // remove "/echo/"
-                string contentType = "text/plain";
-                string contentLength = Encoding.UTF8.GetByteCount(body).ToString();
-                response = status +
-                    $"Content-Type: {contentType}\r\n" +
-                    $"Content-Length: {contentLength}\r\n" +
-                    "\r\n" +
-                    body;
+                response = EcohEndPoint(request);
+            }
+            else if (request.Path == "/user-agent")
+            {
+                response = UserAgentEndPoint(request);
             }
             byte[] data = Encoding.UTF8.GetBytes(response);
             await stream.WriteAsync(data, 0, data.Length);
@@ -51,28 +44,91 @@ static async Task HandleClientAsync(TcpClient client)
     }
     client.Close();
 }
-
-static (string Method, string Path) ParseHttpRequest(string requestText)
+// Parse the HTTP request
+static HttpRequest ParseHttpRequest(string requestText)
 {
+    HttpRequest request = new HttpRequest { };
     string[] lines = requestText.Split("\r\n", StringSplitOptions.RemoveEmptyEntries);
     if (lines.Length == 0)
     {
-        return ("", "");
+        return request;
     }
-
     string[] parts = lines[0].Split(" ");
     if (parts.Length != 3)
     {
-        return ("", "");
+        return request;
     }
-    return (parts[0], parts[1]);
-}
+    request.Method = parts[0];
+    request.Path = parts[1];
+    request.Version = parts[2];
+    for (int i = 1; i < lines.Length; i++)
+    {
+        string[] headerParts = lines[i].Split(": ");
+        if (headerParts.Length == 2)
+        {
+            request.Headers[headerParts[0]] = headerParts[1];
+        }
+    }
+    if (request.Headers.ContainsKey("Content-Length"))
+    {
+        int contentLength = int.Parse(request.Headers["Content-Length"]);
+        request.Body = lines[lines.Length - 1];
+    }
 
+    return request;
+}
+// Check if the path starts with "/echo/"
 static bool Echo(string path)
 {
     return path.StartsWith("/echo/");
 }
+// Implement the root(/) endpoint
+static string RootEndPoint(HttpRequest request)
+{
+    string status = "HTTP/1.1 200 OK\r\n";
+    string response = status +
+        "Content-Type: text/plain\r\n" +
+        "Content-Length: 0\r\n" +
+        "\r\n";
+    return response;
+}
+// Implement the /echo endpoint
+static string EcohEndPoint(HttpRequest request)
+{
+    string status = "HTTP/1.1 200 OK\r\n";
+    string body = request.Path.Substring(6);
+    string contentType = "text/plain";
+    string contentLength = Encoding.UTF8.GetByteCount(body).ToString();
+    string response = status +
+        $"Content-Type: {contentType}\r\n" +
+        $"Content-Length: {contentLength}\r\n" +
+        "\r\n" +
+        body;
+    return response;
+}
 
-// clientSocket.Send(Encoding.UTF8.GetBytes("HTTP/1.1 200 OK\r\n\r\n"));
+// Implement the /user-agent endpoint
+static string UserAgentEndPoint(HttpRequest request)
+{
+    string userAgent = request.Headers["User-Agent"];
+    string status = "HTTP/1.1 200 OK\r\n";
+    string contentType = "text/plain";
+    string contentLength = Encoding.UTF8.GetByteCount(userAgent).ToString();
+    string response = status +
+        $"Content-Type: {contentType}\r\n" +
+        $"Content-Length: {contentLength}\r\n" +
+        "\r\n" +
+        userAgent;
 
+    return response;
+}
+class HttpRequest
+{
+    public string Method { get; set; } = "";
+    public string Path { get; set; } = "";
+    public string Version { get; set; } = "";
+    public Dictionary<string, string> Headers { get; set; } = new Dictionary<string, string>();
+    public string Body { get; set; } = "";
+
+}
 
