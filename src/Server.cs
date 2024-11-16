@@ -12,17 +12,19 @@ server.Start();
 while (true)
 {
     var client = await server.AcceptTcpClientAsync(); // wait for client
-    await HandleClientAsync(client);
-    
+    _ = Task.Run(() =>
+    {
+        HandleClient(client);
+    });
 }
 
-static async Task HandleClientAsync(TcpClient client)
+static Task HandleClient(TcpClient client)
 {
     using (NetworkStream stream = client.GetStream())
     {
         byte[] buffer = new byte[1024];
         int bytesRead;
-        while ((bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length)) != 0)
+        while ((bytesRead = stream.Read(buffer, 0, buffer.Length)) != 0)
         {
             string receiveData = Encoding.UTF8.GetString(buffer, 0, bytesRead);
             HttpRequest request = ParseHttpRequest(receiveData);
@@ -42,10 +44,11 @@ static async Task HandleClientAsync(TcpClient client)
                 response = UserAgentEndPoint(request);
             }
             byte[] data = Encoding.UTF8.GetBytes(response);
-            await stream.WriteAsync(data, 0, data.Length);
+            stream.Write(data, 0, data.Length);
         }
     }
     client.Close();
+    return Task.CompletedTask;
 }
 // Parse the HTTP request
 static HttpRequest ParseHttpRequest(string requestText)
