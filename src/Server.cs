@@ -1,4 +1,3 @@
-using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -6,7 +5,7 @@ using System.Text;
 // You can use print statements as follows for debugging, they'll be visible when running tests.
 Console.WriteLine("Logs from your program will appear here!");
 
-if(args.Length<2)
+if (args.Length < 2)
 {
     Console.WriteLine("Usage: --directory /tmp/");
     return;
@@ -19,18 +18,19 @@ server.Start();
 while (true)
 {
     var client = await server.AcceptTcpClientAsync(); // wait for client
-    await HandleClientAsync(client);
-
+    _ = Task.Run(() =>
+    {
+        HandleClient(client);
+    });
 }
 
-static async Task HandleClientAsync(TcpClient client)
+static Task HandleClient(TcpClient client)
 {
-    
     using (NetworkStream stream = client.GetStream())
     {
         byte[] buffer = new byte[1024];
         int bytesRead;
-        while ((bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length)) != 0)
+        while ((bytesRead = stream.Read(buffer, 0, buffer.Length)) != 0)
         {
             string receiveData = Encoding.UTF8.GetString(buffer, 0, bytesRead);
             HttpRequest request = ParseHttpRequest(receiveData);
@@ -54,10 +54,11 @@ static async Task HandleClientAsync(TcpClient client)
                 response = FilesEndPoint(request);
             }
             byte[] data = Encoding.UTF8.GetBytes(response);
-            await stream.WriteAsync(data, 0, data.Length);
+            stream.Write(data, 0, data.Length);
         }
     }
     client.Close();
+    return Task.CompletedTask;
 }
 // Parse the HTTP request
 static HttpRequest ParseHttpRequest(string requestText)
@@ -139,11 +140,10 @@ static string UserAgentEndPoint(HttpRequest request)
 
     return response;
 }
-
 static string FilesEndPoint(HttpRequest request)
 {
     var args = Environment.GetCommandLineArgs();
-    string dir = args[1];
+    string dir = args[2];
     string path = request.Path.Substring(7);
     string filePath = dir + path;
     if (File.Exists(filePath))
@@ -164,7 +164,6 @@ static string FilesEndPoint(HttpRequest request)
         return "HTTP/1.1 404 Not Found\r\n\r\n";
     }
 }
-
 class HttpRequest
 {
     public string Method { get; set; } = "";
