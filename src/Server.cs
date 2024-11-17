@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -24,11 +25,11 @@ static Task HandleClient(TcpClient client)
     {
         byte[] buffer = new byte[1024];
         int bytesRead;
-        while ((bytesRead = stream.Read(buffer, 0, buffer.Length)) != 0)
+        bytesRead = stream.Read(buffer, 0, buffer.Length);
         {
             string receiveData = Encoding.UTF8.GetString(buffer, 0, bytesRead);
             HttpRequest request = ParseHttpRequest(receiveData);
-            string response = "HTTP/1.1 404 Not Found\r\n\r\n";
+            byte[] response = Encoding.UTF8.GetBytes("HTTP/1.1 404 Not Found\r\n\r\n");
             if (request.Path == "/")
             {
                 Console.WriteLine("Root endpoint");
@@ -51,8 +52,7 @@ static Task HandleClient(TcpClient client)
             {
                 response = FilesEndPoint(request);
             }
-            byte[] data = Encoding.UTF8.GetBytes(response);
-            stream.Write(data, 0, data.Length);
+            stream.Write(response, 0, response.Length);
         }
     }
     client.Close();
@@ -72,7 +72,7 @@ static HttpRequest ParseHttpRequest(string requestText)
     {
         return request;
     }
-    request.Method = parts[0];
+    request.Method = parts[0].ToUpper();
     request.Path = parts[1];
     request.Version = parts[2];
     for (int i = 1; i < lines.Length; i++)
@@ -96,8 +96,20 @@ static bool Echo(string path)
 {
     return path.StartsWith("/echo/");
 }
+// Compress the data using GZip
+static byte[] CompressData(byte[] data)
+{
+    using (var memoryStream = new MemoryStream())
+    {
+        using (var gzipStream = new GZipStream(memoryStream, CompressionMode.Compress))
+        {
+            gzipStream.Write(data, 0, data.Length);
+        }
+        return memoryStream.ToArray();
+    }
+}
 // Implement the root(/) endpoint
-static string RootEndPoint(HttpRequest request)
+static byte[] RootEndPoint(HttpRequest request)
 {
     string status = "HTTP/1.1 200 OK\r\n";
     string body = "{\"msg\": \"Daumen hoch!\"}";
@@ -106,34 +118,40 @@ static string RootEndPoint(HttpRequest request)
         $"Content-Length: {body.Length}\r\n" +
         "\r\n" +
         body;
-    return response;
+    return Encoding.UTF8.GetBytes(response);
 }
 // Implement the /echo endpoint
-static string EcohEndPoint(HttpRequest request)
+static byte[] EcohEndPoint(HttpRequest request)
 {
     string status = "HTTP/1.1 200 OK\r\n";
     string body = request.Path.Substring(6);
 
     string contentEncoding = "";
+    byte[] data = Encoding.UTF8.GetBytes(body);
 
-    if(request.Headers.ContainsKey("Accept-Encoding") && request.Headers["Accept-Encoding"].Contains("gzip"))
+    if (request.Headers.ContainsKey("Accept-Encoding") && request.Headers["Accept-Encoding"].Contains("gzip"))
     {
         contentEncoding = "Content-Encoding: gzip\r\n";
+        data = CompressData(data);
     }
 
     string contentType = "text/plain";
     string contentLength = Encoding.UTF8.GetByteCount(body).ToString();
-    string response = status +
+    string headers = status +
         contentEncoding +
         $"Content-Type: {contentType}\r\n" +
-        $"Content-Length: {contentLength}\r\n" +
-        "\r\n" +
-        body;
+        $"Content-Length: {data.Length}\r\n" +
+        "\r\n";
+    byte[] headerBytes = Encoding.UTF8.GetBytes(headers);
+    byte[] response = new byte[headerBytes.Length + data.Length];
+    headerBytes.CopyTo(response, 0);
+    data.CopyTo(response, headerBytes.Length);
+
     return response;
 }
 
 // Implement the /user-agent endpoint
-static string UserAgentEndPoint(HttpRequest request)
+static byte[] UserAgentEndPoint(HttpRequest request)
 {
     string userAgent = request.Headers["User-Agent"];
     string status = "HTTP/1.1 200 OK\r\n";
@@ -145,9 +163,9 @@ static string UserAgentEndPoint(HttpRequest request)
         "\r\n" +
         userAgent;
 
-    return response;
+    return Encoding.UTF8.GetBytes(response);
 }
-static string FilesEndPoint(HttpRequest request)
+static byte[] FilesEndPoint(HttpRequest request)
 {
     var args = Environment.GetCommandLineArgs();
     string dir = args[2];
@@ -164,15 +182,15 @@ static string FilesEndPoint(HttpRequest request)
             $"Content-Length: {contentLength}\r\n" +
             "\r\n" +
             body;
-        return response;
+        return Encoding.UTF8.GetBytes(response);
     }
     else
     {
-        return "HTTP/1.1 404 Not Found\r\n\r\n";
+        return Encoding.UTF8.GetBytes("HTTP/1.1 404 Not Found\r\n\r\n");
     }
 }
 
-static string PostFilesEndPoint(HttpRequest request)
+static byte[] PostFilesEndPoint(HttpRequest request)
 {
     var args = Environment.GetCommandLineArgs();
     string dir = args[2];
@@ -182,7 +200,7 @@ static string PostFilesEndPoint(HttpRequest request)
     string body = request.Body;
     File.WriteAllText(filePath, body);
 
-    return "HTTP/1.1 201 Created\r\n\r\n";
+    return Encoding.UTF8.GetBytes("HTTP/1.1 201 Created\r\n\r\n");
 }
 
 class HttpRequest
