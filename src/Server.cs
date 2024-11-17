@@ -43,6 +43,10 @@ static Task HandleClient(TcpClient client)
             {
                 response = UserAgentEndPoint(request);
             }
+            else if (request.Path.StartsWith("/files/") && request.Method == "POST")
+            {
+                response = PostFilesEndPoint(request);
+            }
             else if (request.Path.StartsWith("/files/"))
             {
                 response = FilesEndPoint(request);
@@ -158,6 +162,20 @@ static string FilesEndPoint(HttpRequest request)
         return "HTTP/1.1 404 Not Found\r\n\r\n";
     }
 }
+
+static string PostFilesEndPoint(HttpRequest request)
+{
+    var args = Environment.GetCommandLineArgs();
+    string dir = args[2];
+    string path = request.Path.Substring(7);
+    string filePath = dir + path;
+
+    string body = request.Body;
+    File.WriteAllText(filePath, body);
+
+    return "HTTP/1.1 201 Created\r\n\r\n";
+}
+
 class HttpRequest
 {
     public string Method { get; set; } = "";
