@@ -113,9 +113,18 @@ static string EcohEndPoint(HttpRequest request)
 {
     string status = "HTTP/1.1 200 OK\r\n";
     string body = request.Path.Substring(6);
+
+    string contentEncoding = "";
+
+    if(request.Headers.ContainsKey("Content-Encoding") && request.Headers["Content-Encoding"] == "gzip")
+    {
+        contentEncoding = "Content-Encoding: gzip\r\n";
+    }
+
     string contentType = "text/plain";
     string contentLength = Encoding.UTF8.GetByteCount(body).ToString();
     string response = status +
+        contentEncoding +
         $"Content-Type: {contentType}\r\n" +
         $"Content-Length: {contentLength}\r\n" +
         "\r\n" +
