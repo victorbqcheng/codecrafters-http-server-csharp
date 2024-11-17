@@ -116,7 +116,7 @@ static string EcohEndPoint(HttpRequest request)
 
     string contentEncoding = "";
 
-    if(request.Headers.ContainsKey("Content-Encoding") && request.Headers["Content-Encoding"] == "gzip")
+    if(request.Headers.ContainsKey("Accept-Encoding") && request.Headers["Accept-Encoding"] == "gzip")
     {
         contentEncoding = "Content-Encoding: gzip\r\n";
     }
